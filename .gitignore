@@ -24,5 +24,7 @@ output*
 .DS_Store
 /differentbin/
 
-load_output.txt
+*.log
 rocksdb-dir
+
+TODO.md
