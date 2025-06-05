@@ -10,7 +10,7 @@ output*
 .settings
 .checkstyle
 
-# ignore standard IntelliJ files
+.vscode/
 .idea/
 *.iml
 *.ipr
