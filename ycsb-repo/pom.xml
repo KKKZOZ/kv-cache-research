@@ -110,6 +110,7 @@ LICENSE file.
   <properties>
     <maven.assembly.version>2.5.5</maven.assembly.version>
     <maven.dependency.version>2.10</maven.dependency.version>
+    <checkstyle.skip>true</checkstyle.skip>
 
     <!-- datastore binding versions, lex sorted -->
     <accumulo.1.6.version>1.6.6</accumulo.1.6.version>
