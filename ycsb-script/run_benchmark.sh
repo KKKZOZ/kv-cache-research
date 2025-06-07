@@ -150,7 +150,7 @@ main() {
 
         log "Loading YCSB for $db - Workload: $workload..." "$GREEN"
 
-        ./bin/ycsb load "$db" -s -P "$workload_files_dir/$workload" -threads "$threads" -p "${db}.dir=$DB_DATA_DIR_BASE" >"$LOAD_LOG_FILE" 2>&1
+        ./bin/ycsb load "$db" -s -P "$workload_files_dir/$workload" -p memcached.hosts=127.0.0.1:11211 -threads "$threads" -p "${db}.dir=$DB_DATA_DIR_BASE" >"$LOAD_LOG_FILE" 2>&1
 
         if [ $? -ne 0 ]; then
             log "Error during YCSB Load for $db (Workload: $workload). Check log: $LOAD_LOG_FILE" "$RED"
@@ -170,7 +170,7 @@ main() {
 
             log "Running YCSB for Round $i (DB: $db, Workload: $workload)..." "$GREEN"
 
-            ./bin/ycsb run "$db" -s -P "$workload_files_dir/$workload" -threads "$threads" -p "${db}.dir=$DB_DATA_DIR_BASE" >"$RUN_LOG_FILE_RAW" 2>&1
+            ./bin/ycsb run "$db" -s -P "$workload_files_dir/$workload" -p memcached.hosts=127.0.0.1:11211 -threads "$threads" -p "${db}.dir=$DB_DATA_DIR_BASE" >"$RUN_LOG_FILE_RAW" 2>&1
 
             if [ $? -ne 0 ]; then
                 log "Error during YCSB Run for Round $i (DB: $db, Workload: $workload). Check log: $RUN_LOG_FILE_RAW" "$RED"
