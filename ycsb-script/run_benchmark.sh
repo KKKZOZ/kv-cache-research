@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# ANSI color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -8,32 +9,35 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# 默认参数
+# Default parameters
 threads=6
 user_specified_workloads=""
 round=1
 verbose=false
-db=rocksdb
+dbs="rocksdb"
 
-while [[ "$#" -gt 0 ]]; do
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
     case $1 in
     -wl | --workloads)
-        user_specified_workloads="$2"
+        user_specified_workloads=$2
         shift
         ;;
     -t | --threads)
-        threads="$2"
+        threads=$2
         shift
         ;;
     -r | --round)
-        round="$2"
+        round=$2
         shift
         ;;
-    -db | --database)
-        db="$2"
+    -dbs | --dbs)
+        dbs=$2
         shift
         ;;
-    -v | --verbose) verbose=true ;;
+    -v | --verbose)
+        verbose=true
+        ;;
     *)
         echo -e "${RED}Unknown parameter passed: $1${NC}"
         exit 1
@@ -42,157 +46,155 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+# Project directories
 PROJECT_ROOT="$(cd "$(dirname "$0")" && cd ../ && pwd)"
 YCSB_DIR="$PROJECT_ROOT/ycsb-repo"
-DB_DATA_DIR_BASE="$PROJECT_ROOT/ycsb-script/${db}-dir"
+workload_files_dir="workloads/kv-cache-research"
 LOG_DIR_BASE="$PROJECT_ROOT/ycsb-script/benchmark-result"
 
-# Global workload variable that will be updated in the loop
-workload=""
-
+# Logging function
 log() {
     local color=${2:-$NC}
-    if [[ "${verbose}" = true ]]; then
+    if [[ $verbose == true ]]; then
         echo -e "${color}$1${NC}"
     fi
 }
 
+# Choose search command
 if command -v rg &>/dev/null; then
-    SEARCH_COMMAND="rg"
-    log "Using rg command for log parsing." "$GREEN"
+    SEARCH_COMMAND=rg
+    log "Using rg for log parsing" $GREEN
 else
     SEARCH_COMMAND="grep -E"
-    log "rg command not found, falling back to grep -E for log parsing." "$YELLOW"
+    log "rg not found, using grep -E" $YELLOW
 fi
 
+# YCSB load phase
+ycsb_load() {
+    local wf=$1
+    local logdir=$2
+    local loadlog="$logdir/load_threads_${threads}.log"
+
+    log "Cleaning up $db data directory: $DB_DATA_DIR_BASE" $YELLOW
+    rm -rf "$DB_DATA_DIR_BASE"
+    mkdir -p "$DB_DATA_DIR_BASE"
+
+    log "Loading YCSB for $db - Workload: $workload..." $GREEN
+    ./bin/ycsb load $db -s -P "$wf" -p "${db}.dir=$DB_DATA_DIR_BASE" -p "memcached.hosts=127.0.0.1:11211" >"$loadlog" 2>&1
+    if [ $? -ne 0 ]; then
+        log "Error during YCSB Load for $db (Workload: $workload). Check log: $loadlog" $RED
+        return 1
+    fi
+    log "YCSB Load for $db (Workload: $workload) completed successfully." $GREEN
+}
+
+# YCSB run phase
+ycsb_run() {
+    local wf=$1
+    local logdir=$2
+    local rn=$3
+    local rawlog="$logdir/run_threads_${threads}_round_${rn}_raw.log"
+
+    log "Running YCSB Round $rn of $round (DB: $db, Workload: $workload)..." $GREEN
+    ./bin/ycsb run $db -s -P "$wf" -p "${db}.dir=$DB_DATA_DIR_BASE" -p "memcached.hosts=127.0.0.1:11211" >"$rawlog" 2>&1
+    if [ $? -ne 0 ]; then
+        log "Error during YCSB Run Round $rn (DB: $db, Workload: $workload). Check log: $rawlog" $RED
+    # else
+    #     log "YCSB Run Round $rn for $db (Workload: $workload) completed successfully." $GREEN
+    fi
+}
+
+# Summarize results
 summarize() {
-    local current_log_dir="$LOG_DIR_BASE/${db}/${workload}"
-
-    for i in $(seq 1 "$round"); do
-        RAW_RUN_LOG_FILE="$current_log_dir/run_threads_${threads}_round_${i}_raw.log"
-        SUMMARY_LOG_FILE="$current_log_dir/run_threads_${threads}_round_${i}.log"
-
-        if [ -f "$RAW_RUN_LOG_FILE" ]; then
-            "$SEARCH_COMMAND" "\[(OVERALL|READ|READ-MODIFY-WRITE|CLEANUP|UPDATE|INSERT|SCAN)\]" "$RAW_RUN_LOG_FILE" >"$SUMMARY_LOG_FILE"
-            log "Summary created: $SUMMARY_LOG_FILE" "$BLUE"
+    local dir="$LOG_DIR_BASE/$db/$workload"
+    for i in $(seq 1 $round); do
+        local rawlog="$dir/run_threads_${threads}_round_${i}_raw.log"
+        local sumlog="$dir/run_threads_${threads}_round_${i}.log"
+        if [ -f "$rawlog" ]; then
+            $SEARCH_COMMAND "\[(OVERALL|READ|READ-MODIFY-WRITE|CLEANUP|UPDATE|INSERT|SCAN)\]" "$rawlog" >"$sumlog"
         else
-            log "Run log file not found for summary: $RAW_RUN_LOG_FILE" "$RED"
+            log "Run log file not found for summary: $rawlog" $RED
         fi
     done
 }
 
 main() {
     cd "$YCSB_DIR" || {
-        echo -e "${RED}Error: Failed to change directory to $YCSB_DIR. Exiting.${NC}"
+        echo -e "${RED}Failed to change directory to $YCSB_DIR. Exiting.${NC}"
         exit 1
     }
 
+    # Build workload list
     local workloads_to_run=()
-    local workload_files_dir="workloads/kv-cache-research" # Relative to YCSB_DIR
-
-    if [ -n "$user_specified_workloads" ]; then
-        log "Using user-specified workloads: \"$user_specified_workloads\"" "$GREEN"
-        # Parse the space-separated string into an array
+    if [[ -n $user_specified_workloads ]]; then
         read -r -a workloads_to_run <<<"$user_specified_workloads"
+        log "Using user-specified workloads: ${workloads_to_run[*]}" $GREEN
     else
-        log "No user-specified workloads. Scanning directory: $YCSB_DIR/$workload_files_dir for workloads." "$YELLOW"
-        if [ ! -d "$workload_files_dir" ]; then
-            log "Workload directory '$YCSB_DIR/$workload_files_dir' not found. Exiting." "$RED"
-            exit 1
-        fi
-
-        # Populate from directory
-        for file_path in "$workload_files_dir"/*; do
-            if [ -f "$file_path" ]; then
-                workloads_to_run+=("$(basename "$file_path")")
-            fi
+        log "Scanning directory for workloads: $workload_files_dir" $YELLOW
+        for f in "$workload_files_dir"/*; do
+            [[ -f "$f" ]] && workloads_to_run+=("$(basename "$f")")
         done
     fi
-
-    if [ ${#workloads_to_run[@]} -eq 0 ]; then
-        if [ -n "$user_specified_workloads" ]; then
-            log "User-specified workloads list \"$user_specified_workloads\" resulted in an empty set or all names were invalid. Exiting." "$RED"
-        else
-            log "No workload files found in $YCSB_DIR/$workload_files_dir. Exiting." "$RED"
-        fi
+    [[ ${#workloads_to_run[@]} -eq 0 ]] && {
+        echo -e "${RED}No workloads found. Exiting.${NC}"
         exit 1
-    fi
+    }
 
-    log "Final list of workloads to process:" "$GREEN"
-    for workload in "${workloads_to_run[@]}"; do
-        log "  + $workload" "$GREEN"
-    done
-    echo
-
-    # Loop for each workload
-    for current_workload_item in "${workloads_to_run[@]}"; do
-        workload="$current_workload_item" # Set global workload
-
-        local current_workload_log_dir="$LOG_DIR_BASE/${db}/${workload}"
-        mkdir -p "$current_workload_log_dir"
-
-        log "--------------------------------------------------" "$PURPLE"
-        log "Starting Benchmark for Workload: $workload" "$PURPLE"
-        log "--------------------------------------------------" "$PURPLE"
-        log "Database: $db, Threads: $threads, Run Rounds: $round" "$GREEN"
-
-        if [ ! -f "$workload_files_dir/$workload" ]; then
-            log "Workload file '$workload_files_dir/$workload' not found. Skipping this workload." "$RED"
-            echo
-            continue
-        fi
-
-        log "Cleaning up $db data directory: $DB_DATA_DIR_BASE (for workload $workload)" "$YELLOW"
-        rm -rf "$DB_DATA_DIR_BASE"
-        mkdir -p "$DB_DATA_DIR_BASE"
-
-        LOAD_LOG_FILE="$current_workload_log_dir/load_threads_${threads}.log"
-
-        log "Loading YCSB for $db - Workload: $workload..." "$GREEN"
-
-        ./bin/ycsb load "$db" -s -P "$workload_files_dir/$workload" -p memcached.hosts=127.0.0.1:11211 -threads "$threads" -p "${db}.dir=$DB_DATA_DIR_BASE" >"$LOAD_LOG_FILE" 2>&1
-
-        if [ $? -ne 0 ]; then
-            log "Error during YCSB Load for $db (Workload: $workload). Check log: $LOAD_LOG_FILE" "$RED"
-            log "Skipping runs for this workload and proceeding to the next." "$RED"
-            echo
-            continue
-        fi
-        log "YCSB Load phase for $db (Workload: $workload) completed successfully." "$GREEN"
-
-        # --- YCSB Run Phase (multiple rounds) ---
-        for i in $(seq 1 "$round"); do
-            log "--------------------------------------------------" "$CYAN"
-            log "Starting Run Round $i of $round for Workload: $workload (DB: $db)" "$CYAN"
-            log "--------------------------------------------------" "$CYAN"
-
-            RUN_LOG_FILE_RAW="$current_workload_log_dir/run_threads_${threads}_round_${i}_raw.log"
-
-            log "Running YCSB for Round $i (DB: $db, Workload: $workload)..." "$GREEN"
-
-            ./bin/ycsb run "$db" -s -P "$workload_files_dir/$workload" -p memcached.hosts=127.0.0.1:11211 -threads "$threads" -p "${db}.dir=$DB_DATA_DIR_BASE" >"$RUN_LOG_FILE_RAW" 2>&1
-
-            if [ $? -ne 0 ]; then
-                log "Error during YCSB Run for Round $i (DB: $db, Workload: $workload). Check log: $RUN_LOG_FILE_RAW" "$RED"
-            else
-                log "YCSB Run for Round $i (DB: $db, Workload: $workload) completed successfully." "$GREEN"
+    # Sort by data-size suffix: test, 10G, 25G
+    local sorted=()
+    for size in test 10G 25G; do
+        for w in "${workloads_to_run[@]}"; do
+            if [[ $w == *_$size ]]; then
+                sorted+=("$w")
             fi
-            log "Finished Run Round $i of $round for Workload: $workload (DB: $db)" "$CYAN"
+        done
+    done
+    workloads_to_run=("${sorted[@]}")
+    log "Workload order: ${workloads_to_run[*]}" $BLUE
+
+    for db in $dbs; do
+        DB_DATA_DIR_BASE="$PROJECT_ROOT/ycsb-script/${db}-dir"
+        log "==================================================" $YELLOW
+        log "Starting benchmarks for Database: $db" $YELLOW
+        log "==================================================" $YELLOW
+
+        local cur_size=""
+        for workload in "${workloads_to_run[@]}"; do
+            size=${workload##*_}
+            local dir="$LOG_DIR_BASE/$db/$workload"
+            mkdir -p "$dir"
+
+            # Only load data when size changes
+            if [[ $size != $cur_size ]]; then
+                cur_size=$size
+                log "--------------------------------------------------" $PURPLE
+                log "Switching data size to: $cur_size for DB: $db" $PURPLE
+                log "Clearing data dir for size $cur_size (DB: $db)" $YELLOW
+                rm -rf "$DB_DATA_DIR_BASE" && mkdir -p "$DB_DATA_DIR_BASE"
+
+                # Load phase for this size
+                ycsb_load "$workload_files_dir/$workload" "$dir" || {
+                    echo
+                    continue
+                }
+            fi
+
+            # Run rounds for each workload (no reload)
+            for i in $(seq 1 $round); do
+                ycsb_run "$workload_files_dir/$workload" "$dir" $i
+            done
+
+            # Summarize
+            summarize
+            log "Finished benchmark for DB: $db, Workload: $workload" $CYAN
         done
 
-        summarize
+        log "==================================================" $YELLOW
+        log "All workloads processed for Database: $db" $YELLOW
+        log "==================================================" $YELLOW
+    done
 
-        log "--------------------------------------------------" "$PURPLE"
-        log "Finished benchmark for Workload: $workload" "$PURPLE"
-        log "--------------------------------------------------" "$PURPLE"
-        echo
-
-    done # End of workloads loop
-
-    log "==================================================" "$YELLOW"
-    log "All specified workloads have been processed for database $db." "$YELLOW"
-    log "Base log directory: $LOG_DIR_BASE/${db}" "$YELLOW"
-    log "==================================================" "$YELLOW"
+    log "Benchmark script completed for all databases." $GREEN
 }
 
 main "$@"
