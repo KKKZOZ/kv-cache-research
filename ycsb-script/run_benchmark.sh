@@ -140,9 +140,9 @@ main() {
         exit 1
     }
 
-    # Sort by data-size suffix: test, 10G, 25G
+    # Sort by data-size suffix: test, 10G, 40G
     local sorted=()
-    for size in test 10G 25G; do
+    for size in test 10G 40G; do
         for w in "${workloads_to_run[@]}"; do
             if [[ $w == *_$size ]]; then
                 sorted+=("$w")
