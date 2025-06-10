@@ -79,8 +79,18 @@ ycsb_load() {
     rm -rf "$DB_DATA_DIR_BASE"
     mkdir -p "$DB_DATA_DIR_BASE"
 
+    if [[ $db == "memcached" ]]; then
+        log "Flushing Memcached server..." $YELLOW
+        # Flush all keys in Memcached
+        printf "flush_all\r\nquit\r\n" | nc -q 1 localhost 11211
+        if [ $? -ne 0 ]; then
+            log "Error flushing Memcached server. Ensure it is running." $RED
+            return 1
+        fi
+    fi
+
     log "Loading YCSB for $db - Workload: $workload..." $GREEN
-    ./bin/ycsb load $db -s -P "$wf" -p "${db}.dir=$DB_DATA_DIR_BASE" -p "memcached.hosts=127.0.0.1:11211" >"$loadlog" 2>&1
+    ./bin/ycsb load $db -s -P "$wf" -threads "$threads" -p "${db}.dir=$DB_DATA_DIR_BASE" -p "memcached.hosts=127.0.0.1:11211" >"$loadlog" 2>&1
     if [ $? -ne 0 ]; then
         log "Error during YCSB Load for $db (Workload: $workload). Check log: $loadlog" $RED
         return 1
@@ -96,7 +106,7 @@ ycsb_run() {
     local rawlog="$logdir/run_threads_${threads}_round_${rn}_raw.log"
 
     log "Running YCSB Round $rn of $round (DB: $db, Workload: $workload)..." $GREEN
-    ./bin/ycsb run $db -s -P "$wf" -p "${db}.dir=$DB_DATA_DIR_BASE" -p "memcached.hosts=127.0.0.1:11211" >"$rawlog" 2>&1
+    ./bin/ycsb run $db -s -P "$wf" -threads "$threads" -p "${db}.dir=$DB_DATA_DIR_BASE" -p "memcached.hosts=127.0.0.1:11211" >"$rawlog" 2>&1
     if [ $? -ne 0 ]; then
         log "Error during YCSB Run Round $rn (DB: $db, Workload: $workload). Check log: $rawlog" $RED
     # else
@@ -111,7 +121,7 @@ summarize() {
         local rawlog="$dir/run_threads_${threads}_round_${i}_raw.log"
         local sumlog="$dir/run_threads_${threads}_round_${i}.log"
         if [ -f "$rawlog" ]; then
-            $SEARCH_COMMAND "\[(OVERALL|READ|READ-MODIFY-WRITE|CLEANUP|UPDATE|INSERT|SCAN)\]" "$rawlog" >"$sumlog"
+            $SEARCH_COMMAND "\[(OVERALL|READ|READ-MODIFY-WRITE|CLEANUP|UPDATE|UPDATE-FAILED|INSERT|INSERT-FAILED|SCAN)\]" "$rawlog" >"$sumlog"
         else
             log "Run log file not found for summary: $rawlog" $RED
         fi

@@ -2,7 +2,6 @@ recordcount=10000
 operationcount=20000
 workload=site.ycsb.workloads.CoreWorkload
 readallfields=true
-threadcount=6
 
 readproportion=0.2
 updateproportion=0.2
