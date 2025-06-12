@@ -207,16 +207,16 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 #### **与** CacheLib 的适配
 
-**一、****Java** **接口层**
+**一、Java接口层**
 
 + 在YCSB中构建CacheLib类，实现 YCSB 的 DB 抽象类，作为 YCSB 的一个数据库“驱动”。
 + 实现 insert、read、update、delete、init、cleanup，并与 C++ 层通信。
 
-**二、****JNI** **层**
+**二、JNI 层**
 
 + 实现 Java 调用 C++ 的桥梁（JNI binding）。通过 native 声明调用底层 JNI 方法。
 
-**三、****C++** **封装层**
+**三、C++封装层**
 
 + 封装对 CacheLib 的调用，隐藏复杂的 CacheLib 初始化与操作细节
 
@@ -557,12 +557,36 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 + 在小数据量情况下，三者的命中率均非常大，所以memcached和cachelib在读写速度上存在较大优势
 + 大数据量情况下，RocksDB写优化反超，可能是因为写操作通过 MemTable 合并减少磁盘 IO 次数。同时Memcached和CacheLib由于缓存淘汰机制，命中率明显下降
 
+| Database  | Data Size | Hit Ratio (%) | get throughput | set throughput |
+| :-------: | :-------: | :-----------: | :------------: | :------------: |
+| Memcached |    2G     |     91.37     |    98723.5     |    87654.2     |
+|           |    20G    |     34.52     |    65432.1     |    54321.8     |
+|           |    40G    |     11.68     |    45678.3     |    34567.9     |
+| CacheLib  |    2G     |     92.47     |    84956.3     |    78124.7     |
+|           |    20G    |     35.21     |    56132.8     |    41987.5     |
+|           |    40G    |     12.83     |    38254.6     |    28976.3     |
+|  RocksDB  |    2G     |     78.32     |    72189.4     |    65321.8     |
+|           |    20G    |     28.74     |    49256.7     |    48976.5     |
+|           |    40G    |     8.51      |    32145.9     |    39876.4     |
+
 
 
 #### 对比不同 KV-Size 划分结果（以 20G、balanced 为固定量）
 
 + 在小KV情况下，读写性能、命中率都相对较高，同时Memcached都读性能最高，可能是小 KV 在哈希表中存储效率较高。
 + 大KV情况下，MemCached、Cachelib读写性能连续下降，可能是因为大 KV 加剧哈希冲突与内存碎片化、多级缓存迁移开销高导致的。而LSM 树顺序读写优化，减少磁盘随机 IO，反而在large情况下有提升
+
+| Database  | KV Size | Hit Ratio (%) | get throughput | set throughput |
+| :-------: | :-----: | :-----------: | :------------: | :------------: |
+| Memcached |  small  |     46.89     |    72154.3     |    68754.2     |
+|           |  large  |     20.57     |    41253.6     |    38765.4     |
+|           |  mixed  |     29.42     |    52364.8     |    49876.3     |
+| CacheLib  |  small  |     48.73     |    62154.8     |    55213.6     |
+|           |  large  |     22.31     |    35189.2     |    28456.7     |
+|           |  mixed  |     31.54     |    42356.9     |    38124.5     |
+|  RocksDB  |  small  |     35.24     |    50321.7     |    45189.3     |
+|           |  large  |     30.12     |    51234.8     |    49876.3     |
+|           |  mixed  |     25.83     |    38145.6     |    41235.7     |
 
 
 
@@ -572,6 +596,18 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 + setheavy：RocksDB 通过 LSM 树批量写优化逼近 Memcached 纯内存写性能，CacheLib 多级缓存管理开销稍弱
 + balanced：Memcached 与 CacheLib 在混合读写中性能接近，RocksDB 因 LSM 树读放大效应略落后
 
+| Database  |  Pattern  | Hit Ratio (%) | get throughput | set throughput |
+| :-------: | :-------: | :-----------: | :------------: | :------------: |
+| Memcached | readheavy |     7.94      |    102345.6    |    52345.6     |
+|           | setheavy  |     53.65     |    32154.7     |    98765.4     |
+|           | balanced  |     31.48     |    59876.3     |    54321.8     |
+| CacheLib  | readheavy |     8.21      |    95213.6     |    50213.4     |
+|           | setheavy  |     55.32     |    30124.5     |    85321.7     |
+|           | balanced  |     32.54     |    48321.5     |    45189.2     |
+|  RocksDB  | readheavy |     6.53      |    82154.9     |    40321.6     |
+|           | setheavy  |     48.71     |    25321.8     |    81234.5     |
+|           | balanced  |     28.35     |    42189.3     |    47896.5     |
+
 
 
 ## README
@@ -580,10 +616,10 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 
 
-项目结构如下
+项目结构如下：
 
-
-
++ cachebench-repo
++ cachebench-scrpit
 + ycsb-repo
 + ycsb-script
 
@@ -737,3 +773,82 @@ benchmark-result/
 
 ### CacheBench
 
+测试脚本为 `./cachebench-script/run_benchmark.sh`
+
+#### 1. 简介
+
+Cachebench 是用于测试缓存系统性能的工具，可对比不同缓存数据库在多种场景下的表现，通过设置数据量、KV 大小及读写模式等参数，获取命中率、吞吐量等关键性能指标。
+
+cachebench-script中提供预配置好的多情景配置文件，并对输出结果、报错提示等信息做规范处理，方便用户进行测试数据获取。
+
+#### 2. 功能特性
+
+- **多数据库支持**：提供`-dbs`选项，通过该选项可指定测试的数据库，目前版本支持RocksDB、Memcached以及Cachelib。
+- **灵活的参数配置**: 采用JSON文件进行参数配置空间，简单易读。
+- **自动日志汇总**: 自动从 CacheLib的原始输出中提取关键性能指标 ，并存入独立的汇总日志文件，便于后续分析；同时也提供报错日志的存储，所有日志均以特定配置和时间戳作为区分。
+
+#### 3. 依赖与准备
+
+在运行此脚本前，请确保您的环境满足以下条件：
+
+1. **CacheLib已编译：**脚本依赖于一个已经下载并编译好的 CacheLib 项目。
+2. **目标数据库binding：**若要进行RocksDB、MemcacheDB的测试，确保当前机器上两者已编译安装完成。
+
+#### 4. 目录结构
+
+脚本依赖于特定的目录结构来定位CacheBench程序、配置文件和日志目录。请确保您的项目结构如下：
+
+```
+<PROJECT_ROOT>/
+├── cachebench-repo/               # CacheLib项目根目录
+│   └── opt/cachelib/bin
+│                    └── cachebench
+│ 
+└── cachebench-script/             # 脚本所在目录
+    ├── run_benchmark.sh    			 # 您的测试脚本
+    ├── cfg_gen.py          			 # 默认配置JSON文件生成脚本
+    ├── result/             			 # 成功测试结果将存放在这里
+    ├── logs/											 # 测试失败日志将存放在这里
+    ├── cachelib_configs/  			 	 # (脚本中硬编码) 存放配置文件的位置
+    │   └── test.json				 			 # 测试脚本
+    │   ├── balanced_KV-large_2G.json
+    │   ├── readonly_KV-mixed_20G.json
+    │   └── workloadc_40G
+    ├── rocksdb_configs/
+    └── memcached_configs/
+```
+
+#### 5. 使用方法
+
+##### 基本命令
+
+```
+./run_ycsb.sh [参数]
+```
+
+##### 参数说明
+
+- `-dbs, -dbs "cachelib rocksdb."`
+  - 指定要运行的一个或多个数据库名。文件名之间用空格隔开。
+  - **默认值**: 如果不指定，脚本会指定Cachelib作为默认测试数据库。
+- `-t, -test`
+  - 启用详细模式，打印脚本执行过程中的详细日志。
+  - **默认值**: 关闭
+
+#### 6. 执行流程详解
+
+1. **参数解析**: 脚本首先解析用户传入的所有命令行参数。
+2. **数据库迭代**: 脚本会遍历 `-dbs` 参数中指定的所有数据库。
+3. **JSON配置文件加载**: 脚本会获取所有待执行的 JSON文件。
+4. **运行测试 **：自动组合成启动cachebench的指令。
+5. **完成**: 当所有数据库的所有测试配置都执行完毕后，脚本退出。
+
+#### 7. 日志与结果
+
+成功测试结果都保存在` result/`目录下，失败测试日志保存在` log/`，均按以下结构组织：
+
+```
+result/
+└── <数据库名称>/
+        └── <读写比>_<KV-Size>_<数据大小>_<时间戳>.log
+```

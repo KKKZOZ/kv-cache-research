@@ -1,0 +1,38 @@
+{
+  "cache_config": {
+    "cacheSizeMB": 15360,
+    "poolRebalanceIntervalSec": 1,
+    "moveOnSlabRelease": false,
+    "numPools": 1,
+    "backend": "memcached"
+  },
+  "test_config": {
+    "numOps": 100000,
+    "numThreads": 6,
+    "distribution": "range",
+    "opDelayBatch": 1,
+    "opDelayNs": 200,
+    "delRatio": 0.0,
+    "getRatio": 0.05,
+    "setRatio": 0.95,
+    "numKeys": 112386,
+    "keySizeRange": [
+      4,
+      64
+    ],
+    "keySizeRangeProbability": [
+      1
+    ],
+    "valSizeRange": [
+      64,
+      512,
+      10240,
+      409200
+    ],
+    "valSizeRangeProbability": [
+      0.1,
+      0.2,
+      0.7
+    ]
+  }
+}
