@@ -1,0 +1,34 @@
+{
+  "cache_config": {
+    "cacheSizeMB": 15360,
+    "poolRebalanceIntervalSec": 1,
+    "moveOnSlabRelease": false,
+    "numPools": 1,
+    "backend": "rocksdb"
+  },
+  "test_config": {
+    "numOps": 100000,
+    "numThreads": 6,
+    "distribution": "range",
+    "opDelayBatch": 1,
+    "opDelayNs": 200,
+    "delRatio": 0.0,
+    "getRatio": 1.0,
+    "setRatio": 0.0,
+    "numKeys": 14316550,
+    "keySizeRange": [
+      4,
+      8
+    ],
+    "keySizeRangeProbability": [
+      1
+    ],
+    "valSizeRange": [
+      32,
+      128
+    ],
+    "valSizeRangeProbability": [
+      1
+    ]
+  }
+}
