@@ -413,14 +413,13 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 ##### 总结
 
- 实验简单总结
- 整体性能：Memcached-without-flash > CacheLib > Memcached-with-flash > RocksDB
- 数据量小时吞吐量更高
- RocksDB 受数据量影响最大
- LSM‑tree vs 内存 KV
- Compaction 与写放大
- WAL 同步落盘
- 硬盘 IO 瓶颈
++ 整体性能：Memcached-without-flash > CacheLib > Memcached-with-flash > RocksDB
++ 数据量小时吞吐量更高
++ RocksDB 受数据量影响最大
+  + LSM‑tree vs 内存 KV
+  + Compaction 与写放大
+  + WAL 同步落盘
+  + 硬盘 IO 瓶颈
 
 ## CacheBench
 
@@ -442,15 +441,18 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 ### 实验设置
 
- 对比实验维度选择
- 工作负载：2G（小于内存）、20G（等于内存）和40G（大于内存）
- 读写比：readonly、readheavy（0.95）、balanced（0.5）、setheavy（0.95）
- 平均KV数据Size：KV-small（150B）、KV-mixed（1391B）、KV-large（19010B）
- 每个工作负载跑三次，取平均值
- 数据库设置 (3个)
- RocksDB
- CacheLib
- Memcached
+对比实验维度选择
+
++ 工作负载：2G（小于内存）、20G（等于内存）和40G（大于内存）
++ 读写比：readonly、readheavy（0.95）、balanced（0.5）、setheavy（0.95）
++ 平均KV数据Size：KV-small（150B）、KV-mixed（1391B）、KV-large（19010B）
+
+每个工作负载跑三次，取平均值
+
++ 数据库设置 (3个)
++ RocksDB
++ CacheLib
++ Memcached
 
 ![image-20250611200246308](./Final%20Report.assets/image-20250611200246308.png)
 
