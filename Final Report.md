@@ -10,15 +10,9 @@
 + 最初是 Google LevelDB 的一个分支，但经过了大量优化和功能增强，尤其针对快速存储介质（如 SSD） 进行了优化。
 + “嵌入式”意味着 RocksDB 不是一个独立的数据库服务器，而是作为一个库（Library）链接到应用程序中，直接在应用程序的进程空间内运行
 
-
-
 下图是 TiKV instance architecture 示例
 
 ![image-20250611192138569](./Final%20Report.assets/image-20250611192138569.png)
-
-
-
-
 
 #### 关键组件
 
@@ -29,8 +23,6 @@ RocksDB 关键组件：
 + WAL：任何写入操作在写入 MemTable 前会先记录到 WAL，用于故障恢复，保证数据不会丢失。
 + Compaction (合并): 后台核心操作。定期将不同层级的 SSTable 文件进行合并，删除冗余和已标记为删除的数据，优化读取性能。
 
-
-
 写入流程：
 
 ![image-20250611192251505](./Final%20Report.assets/image-20250611192251505.png)
@@ -38,8 +30,6 @@ RocksDB 关键组件：
 读取流程：
 
 ![image-20250611192306045](./Final%20Report.assets/image-20250611192306045.png)
-
-
 
 #### 核心特点
 
@@ -51,8 +41,6 @@ RocksDB 关键组件：
   + 灵活适配
 + 可适应不同工作负载：从 MyRocks 这样的数据库引擎到应用缓存，再到嵌入式场景。
 + 功能丰富：提供从基础读写到合并、压缩过滤等高级定制功能。
-
-
 
 #### 应用场景
 
@@ -68,7 +56,7 @@ RocksDB 关键组件：
 #### 总结
 
 + 优势
-  +  写性能卓越、SSD 友好
+  + 写性能卓越、SSD 友好
   + 模块化，可深度定制（压缩、过滤、索引）
   + 社区活跃，版本更新频繁
 
@@ -77,14 +65,12 @@ RocksDB 关键组件：
   + 压缩引入额外 I/O；写放大需要监控
   + 大范围顺序扫描性能不及列式 / OLAP系统
 
-
-
 ### MemCached
 
 #### 简介
 
 + Memcached是一个高性能的、分布式的缓存系统，其核心功能是将数据存储在内存中，以提供极快的访问速度。
-+  它通常被用于加速前端，通过将频繁访问的数据缓存在内存中，从而显著减少对后端数据库的访问次数和负载。
++ 它通常被用于加速前端，通过将频繁访问的数据缓存在内存中，从而显著减少对后端数据库的访问次数和负载。
 + 虽然适合 Web 应用，但 Memcached 本身是应用中立的。它提供了最基础的键值对（key-value）存储接口，任何需要高性能缓存的应用都可以使用它。
 
 #### 工作流程
@@ -94,19 +80,13 @@ RocksDB 关键组件：
 3. Memcached 服务器向客户端库发送响应。
 4. Memcached 客户端库为应用程序聚合响应。
 
-
-
 ![image-20250611192648250](./Final%20Report.assets/image-20250611192648250.png)
-
-
 
 #### 核心特点
 
 + 数据存储在内存中，这是其高性能的核心基础。当内存耗尽时，Memcached 默认使用 LRU（最近最少使用）自动淘汰旧数据，为新数据腾出空间。
 + 使用 Slab 内存分配器预先分配和管理不同大小的内存块，采用多个链表管理内存，每个链表中的内存块大小相同。有效避免了内存碎片问题，保证了长期运行的稳定性。
 + 可以在多台服务器上部署多个 Memcached 实例，建立一个分布式系统，形成一个逻辑上统一的、巨大的全局缓存池，供网络中所有应用服务器访问。
-
-
 
 ##### 应用场景
 
@@ -136,11 +116,7 @@ RocksDB 关键组件：
 
 ![image-20250611194326529](./Final%20Report.assets/image-20250611194326529.png)
 
-
-
 #### 核心特点
-
-
 
 + 高性能本地缓存引擎：使用 slab-based 内存分配方式，支持并发访问、高速查找。 延迟极低，读取路径高度优化。
 + 灵活的缓存策略：插件化支持多种驱逐策略：LRU、TinyLFU、FIFO 等。
@@ -153,8 +129,6 @@ RocksDB 关键组件：
 | memcached-w/-flash  | 39006.12396         | 270                                | 268                                  |
 | memcached-w/o-flash | 44183.27221         | 216                                | 222                                  |
 | cachelib            | 40202               | 258                                | 1205                                 |
-
-
 
 #### 应用场景
 
@@ -169,8 +143,6 @@ RocksDB 关键组件：
   + Facebook LogDevice：利用 CacheLib 缓存元数据（如 log index）及热日志项，提高访问效率
   + Scuba：使用 CacheLib 缓存中间计算结果与查询索引
 
-
-
 ### 系统对比
 
 | **特性**   | **RocksDB**                             | **Memcached**                        | **CacheLib**                               |
@@ -182,8 +154,6 @@ RocksDB 关键组件：
 | 适用场景   | 需要持久化存储的数据库或应用后台        | 分布式系统的数据缓存、减少数据库负载 | 单机应用内的精细化、高性能缓存管理         |
 | 主要优点   | 高写入性能、高压缩率、为闪存优化        | 极简、高速、网络访问、易于水平扩展   | 高性能、高命中率、精细化控制、防止缓存争用 |
 | 主要缺点   | 功能相对复杂，无内置网络服务            | 数据结构简单                         | 仅为C++库，无独立服务，需自行集成          |
-
-
 
 ## YCSB
 
@@ -197,13 +167,7 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 + 核**心工作负载**：一系列标准化的测试场景，模拟了不同类型的真实应用访问模式。
 + **数据库接口层**：用于连接不同数据库的“驱动”或“适配器”，例如 rocksdb, mongodb, cassandra 等。
 
-
-
 ![image-20250611194613812](./Final%20Report.assets/image-20250611194613812.png)
-
-
-
-
 
 #### **与** CacheLib 的适配
 
@@ -222,8 +186,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 + 从 JSON 文件加载配置并初始化 CacheLib（CacheAllocator 和 Pool）。
 
-
-
 #### Memcached-with-flash 原理
 
 核心思想：二级缓存 = 内存 (高速) + 外部存储 (大容量) 通过引入 SSD 作为廉价的二级存储，用可接受的延迟换取数十倍的缓存容量。
@@ -231,24 +193,18 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 + 内存 (RAM): 存储所有 Key、元数据，以及热数据的 Value。
 + 外部存储 (SSD): 存储从内存中被驱逐的“冷、大”Value。
 
-
-
 写入 (SET) 操作
 
 + 始终写入内存：数据永远先写入内存，对客户端的写入请求无阻塞、速度快。
 + 后台异步驱逐：后台线程根据策略（如 LRU），将“冷、大”的 Value 从内存移动到 SSD，为新数据腾出空间。
 
-
-
 读取 (GET) 操作
 
 + 内存查找 Key。
-+ 检查 Value 位置: 
++ 检查 Value 位置:
   + 在内存中 (热) -> 极速返回，与传统 Memcached 一致。
   + 在 SSD 中 (冷) -> 由 I/O 线程从磁盘读取，延迟增加，然后返回给客户端。
   + 不存在 -> 直接返回 MISS。
-
-
 
 #### 测试环境
 
@@ -257,14 +213,12 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 + 内存: 20GiB
 + 硬盘空间: 50GiB
 
-
-
 #### 实验设置
 
  实验分为两组
 
 + 第一组工作负载：数据量小于内存（5 个）
-+  第二组工作负载：数据量远大于内存（6 个）
++ 第二组工作负载：数据量远大于内存（6 个）
 + 每个工作负载跑三次，取平均值
 
  统计系统的整体吞吐量以及各个操作的 P95 延迟
@@ -278,8 +232,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 **第一组实验**
 
-
-
 | **实验负载**    | **目标**                                                     | **关键参数**                                                 |
 | --------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | readheavy_10G   | 测试读密集型场景，大部分访问集中在热点数据（Zipfian分布），模拟高缓存命中率。对应 YCSB Workload B 的变种 | readproportion=0.95  updateproportion=0.05  requestdistribution=zipfian |
@@ -288,11 +240,7 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | updateheavy_10G | 测试写密集型（更新操作）场景，热点数据访问                   | readproportion=0.05  updateproportion=0.95                   |
 | readlatest_10G  | 模拟新产生的数据（或最近更新的）被频繁访问的场景，如用户状态更新、新闻流等。对应  YCSB  Workload D | readproportion=0.95  insertproportion=0.05  requestdistribution=latest |
 
-
-
 **第二组实验**
-
-
 
 | **实验负载**          | **目标**                                                     | **关键参数**                                                 |
 | --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -302,8 +250,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | updateheavy_40G       | 测试写密集型（更新操作）场景，热点数据访问                   | readproportion=0.05  updateproportion=0.95                   |
 | readlatest_40G        | 模拟新产生的数据（或最近更新的）被频繁访问的场景，如用户状态更新、新闻流等。对应  YCSB  Workload D | readproportion=0.95  insertproportion=0.05  requestdistribution=latest |
 | readheavy_40G_uniform | 测试磁盘为瓶颈时的读密集型场景，但使用 Uniform  分布，模拟缓存命中率极低（冷缓存）的情况，这将极大地考验磁盘 I/O  性能 | readproportion=0.95  updateproportion=0.05  requestdistribution=uniform |
-
-
 
 #### 实验结果
 
@@ -331,9 +277,7 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached  w/o flash | 693                          | 1323                     |
 | Cachelib             | 861                          | 2749                     |
 
-
-
-+ readheavy_40G_uniform 
++ readheavy_40G_uniform
 
 ![image-20250611195325287](./Final%20Report.assets/image-20250611195325287.png)
 
@@ -344,18 +288,12 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/o flash | 724                          | 3311                     |
 | Cachelib            | 6553                         | 2903                     |
 
-
-
 **实验分析**
-
-
 
 结果分析
 
 + 40G 数据量下，uniform 分布对 RocksDB 和 Memcached-with-flash 有显著影响，uniform 分布模拟缓存命中率极低（冷缓存）的情况，考验磁盘 I/O 性能
 + RocksDB 的 Block Cache 发挥的程度非常有限，所以在 readheavy_40G_uniform 负载中跑出了整个测试的最低值
-
-
 
 ##### Readonly 系列
 
@@ -370,8 +308,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/o flash | 229                  |
 | Cachelib            | 318                  |
 
-
-
 + Readonly_40G
 
 ![image-20250611195526216](./Final%20Report.assets/image-20250611195526216.png)
@@ -383,15 +319,11 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/o flash | 699                  |
 | Cachelib            | 882                  |
 
-
-
 结果分析
 
 + 10G 数据量下，两种 memcached 设置吞吐量基本相等.
 
 + 40G 数据量下，Memcached-with-flash 需要在硬盘中读取数据，所以吞吐量降低
-
-
 
 ##### balanced 系列
 
@@ -406,13 +338,9 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/o flash | 216                          | 222                            |
 | Cachelib            | 258                          | 1205                           |
 
-
-
 + Balanced_40G
 
 ![image-20250611195726447](./Final%20Report.assets/image-20250611195726447.png)
-
-
 
 | **DB**              | **READ**  **P95Latency(us)** | **UPDATE**  **P95Latency(us)** |
 | ------------------- | ---------------------------- | ------------------------------ |
@@ -420,8 +348,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/ flash  | 20623                        | 255                            |
 | Memcached w/o flash | 808                          | 1123                           |
 | Cachelib            | 857                          | 983                            |
-
-
 
 结果分析
 
@@ -441,8 +367,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/o flash | 238                          | 212                            |
 | Cachelib            | 200                          | 760                            |
 
-
-
 + Updateheavy_40G
 
 ![image-20250611195845976](./Final%20Report.assets/image-20250611195845976.png)
@@ -454,13 +378,9 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/o flash | 1296                         | 821                      |
 | Cachelib            | 956                          | 934                      |
 
-
-
 结果分析
 
 + 两种 memcached 配置在 10G 和 40G 数据量下吞吐量差别不大，因为写入操作都是首先写入内存
-
-
 
 ##### readlatest 系列
 
@@ -475,8 +395,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/o flash | 242                          | 238                       |
 | Cachelib            | 294                          | 807                       |
 
-
-
 + Readlatest_40G
 
 ![image-20250611200004378](./Final%20Report.assets/image-20250611200004378.png)
@@ -488,14 +406,10 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 | Memcached w/o flash | 1020                         | 3613                     |
 | Cachelib            | 287                          | 1262                     |
 
-
-
 结果分析
 
 + 10G 数据量下，RocksDB 基本上都在读处于 Memtable 中的数据，所以吞吐量和 Memcached 差别不大
 + 40G 数据量下，RocksDB 的 Read P95 latency 显著提升
-
-
 
 ##### 总结
 
@@ -508,8 +422,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
  WAL 同步落盘
  硬盘 IO 瓶颈
 
-
-
 ## CacheBench
 
 ### 简介
@@ -517,8 +429,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 + CacheBench 是 CacheLib自带的基准测试和压力测试工具。它用于模拟真实缓存工作负载，评估缓存性能指标，包括命中率（hit rate）、淘汰次数（evictions）、写入速率、延迟等。
 + CacheBench 的配置采用 JSON 格式，具有结构清晰、可读性强、易于修改和复用的特点，便于灵活定义缓存和测试参数。
 + CacheBench 的输出结构化清晰，主要包括命中率、分层缓存使用情况（RAM/NVM）、操作成功率与吞吐量，便于全面评估缓存性能。
-
-
 
 ### 与 RocksDB/Memcached 适配
 
@@ -529,8 +439,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 + 加入 RocksDB/Memcached 新后端
 
 ![image-20250611200212405](./Final%20Report.assets/image-20250611200212405.png)
-
-
 
 ### 实验设置
 
@@ -544,11 +452,7 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
  CacheLib
  Memcached
 
-
-
 ![image-20250611200246308](./Final%20Report.assets/image-20250611200246308.png)
-
-
 
 ### 实验结果
 
@@ -569,8 +473,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 |           |    20G    |     28.74     |    49256.7     |    48976.5     |
 |           |    40G    |     8.51      |    32145.9     |    39876.4     |
 
-
-
 #### 对比不同 KV-Size 划分结果（以 20G、balanced 为固定量）
 
 + 在小KV情况下，读写性能、命中率都相对较高，同时Memcached都读性能最高，可能是小 KV 在哈希表中存储效率较高。
@@ -587,8 +489,6 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 |  RocksDB  |  small  |     35.24     |    50321.7     |    45189.3     |
 |           |  large  |     30.12     |    51234.8     |    49876.3     |
 |           |  mixed  |     25.83     |    38145.6     |    41235.7     |
-
-
 
 #### 对比不同读写比结果（以KV-mixed、20G为固定量）
 
@@ -608,13 +508,9 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 |           | setheavy  |     48.71     |    25321.8     |    81234.5     |
 |           | balanced  |     28.35     |    42189.3     |    47896.5     |
 
-
-
 ## README
 
-我们的项目仓库：https://github.com/KKKZOZ/kv-cache-research
-
-
+我们的项目仓库：<https://github.com/KKKZOZ/kv-cache-research>
 
 项目结构如下：
 
@@ -623,13 +519,9 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 + ycsb-repo
 + ycsb-script
 
-
-
 ### YCSB
 
 测试脚本为 `./ycsb-script/run_benchmark.sh`
-
-
 
 #### 1. 简介
 
@@ -639,12 +531,12 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 #### 2. 功能特性
 
-- **多数据库支持**: 可通过参数轻松切换不同的目标数据库进行测试。
-- **灵活的参数配置**: 支持自定义线程数、运行轮次、以及指定运行特定的 workload。
-- **智能数据加载**: 脚本能够识别 workload 的数据规模 (通过文件名后缀，如 `_10G`, `_40G`)，只有在数据规模发生变化时才重新执行耗时的 `load` 操作，大大提高了连续测试多个 workload 的效率。
-- **自动日志汇总**: 自动从 YCSB 的原始输出中提取关键性能指标 (如吞吐量、延迟)，并存入独立的汇总日志文件，便于后续分析。
-- **环境自适应**: 自动检测是否安装了 `rg` (ripgrep) 命令。如果存在，则使用 `rg` 以获得更快的日志解析速度；否则，回退使用标准的 `grep` 命令。
-- **详细过程输出**: 提供 `-v` (verbose) 选项，开启后会打印详细的执行步骤和状态信息，便于调试。
++ **多数据库支持**: 可通过参数轻松切换不同的目标数据库进行测试。
++ **灵活的参数配置**: 支持自定义线程数、运行轮次、以及指定运行特定的 workload。
++ **智能数据加载**: 脚本能够识别 workload 的数据规模 (通过文件名后缀，如 `_10G`, `_40G`)，只有在数据规模发生变化时才重新执行耗时的 `load` 操作，大大提高了连续测试多个 workload 的效率。
++ **自动日志汇总**: 自动从 YCSB 的原始输出中提取关键性能指标 (如吞吐量、延迟)，并存入独立的汇总日志文件，便于后续分析。
++ **环境自适应**: 自动检测是否安装了 `rg` (ripgrep) 命令。如果存在，则使用 `rg` 以获得更快的日志解析速度；否则，回退使用标准的 `grep` 命令。
++ **详细过程输出**: 提供 `-v` (verbose) 选项，开启后会打印详细的执行步骤和状态信息，便于调试。
 
 #### 3. 依赖与准备
 
@@ -656,8 +548,8 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 3. **目标数据库**:
 
-   - 对于 **RocksDB**，确保 YCSB 的 RocksDB binding 已正确配置。
-   - 对于 **Memcached**，确保 Memcached 服务已经在本机 (`localhost:11211`) 启动。
+   + 对于 **RocksDB**，确保 YCSB 的 RocksDB binding 已正确配置。
+   + 对于 **Memcached**，确保 Memcached 服务已经在本机 (`localhost:11211`) 启动。
 
 4. **(可选) ripgrep**: 为了更快的日志处理速度，建议安装 `ripgrep`。
 
@@ -697,21 +589,21 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 ##### 参数说明
 
-- `-wl, --workloads "workload1 workload2 ..."`
-  - 指定要运行的一个或多个 workload 文件名。文件名之间用空格隔开。
-  - **默认值**: 如果不指定，脚本会自动扫描 `workloads/kv-cache-research` 目录下的所有文件作为 workload 列表。
-- `-t, --threads <数量>`
-  - 设置 YCSB 测试时使用的客户端线程数。
-  - **默认值**: `6`
-- `-r, --round <数量>`
-  - 指定每个 workload 的 `run` 阶段需要执行的轮次。
-  - **默认值**: `1`
-- `-dbs, --dbs "db1 db2 ..."`
-  - 指定要测试的一个或多个数据库。数据库名称应与 YCSB binding 名称一致 (如 `rocksdb`, `memcached`)。
-  - **默认值**: `"rocksdb"`
-- `-v, --verbose`
-  - 启用详细模式，打印脚本执行过程中的详细日志。
-  - **默认值**: 关闭
++ `-wl, --workloads "workload1 workload2 ..."`
+  + 指定要运行的一个或多个 workload 文件名。文件名之间用空格隔开。
+  + **默认值**: 如果不指定，脚本会自动扫描 `workloads/kv-cache-research` 目录下的所有文件作为 workload 列表。
++ `-t, --threads <数量>`
+  + 设置 YCSB 测试时使用的客户端线程数。
+  + **默认值**: `6`
++ `-r, --round <数量>`
+  + 指定每个 workload 的 `run` 阶段需要执行的轮次。
+  + **默认值**: `1`
++ `-dbs, --dbs "db1 db2 ..."`
+  + 指定要测试的一个或多个数据库。数据库名称应与 YCSB binding 名称一致 (如 `rocksdb`, `memcached`)。
+  + **默认值**: `"rocksdb"`
++ `-v, --verbose`
+  + 启用详细模式，打印脚本执行过程中的详细日志。
+  + **默认值**: 关闭
 
 #### 6. 执行流程详解
 
@@ -719,17 +611,17 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 2. **环境检查**: 检查 `rg` 命令是否存在，以确定使用 `rg` 还是 `grep`。
 3. **数据库迭代**: 脚本会遍历 `-dbs` 参数中指定的所有数据库。
 4. **Workload 排序与智能加载**:
-   - 脚本会获取所有待执行的 workload 文件。
-   - **核心逻辑**: 它会根据 workload 文件名的后缀 (`_test`, `_10G`, `_40G`) 对它们进行排序。
-   - 在执行 workload 前，脚本会检查当前 workload 的数据规模是否与上一个相同。
-   - 只有在数据规模**不同**时，才会清空数据库目录并执行 `ycsb load` 命令加载新数据。这避免了对相同数据集的重复加载。
+   + 脚本会获取所有待执行的 workload 文件。
+   + **核心逻辑**: 它会根据 workload 文件名的后缀 (`_test`, `_10G`, `_40G`) 对它们进行排序。
+   + 在执行 workload 前，脚本会检查当前 workload 的数据规模是否与上一个相同。
+   + 只有在数据规模**不同**时，才会清空数据库目录并执行 `ycsb load` 命令加载新数据。这避免了对相同数据集的重复加载。
 5. **运行测试 (Run Phase)**:
-   - 对于每一个 workload，脚本会根据 `-r` 参数指定的轮次，多次执行 `ycsb run` 命令。
-   - 每一轮的原始输出都会被重定向到一个独立的 `raw.log` 文件中。
+   + 对于每一个 workload，脚本会根据 `-r` 参数指定的轮次，多次执行 `ycsb run` 命令。
+   + 每一轮的原始输出都会被重定向到一个独立的 `raw.log` 文件中。
 6. **结果汇总 (Summarize Phase)**:
-   - 在指定 workload 的所有轮次运行完毕后，脚本会调用 `summarize` 函数。
-   - 该函数会遍历每一轮的 `raw.log` 文件，使用 `rg` 或 `grep` 提取出包含 `[OVERALL]`, `[READ]`, `[UPDATE]` 等关键字的关键性能行。
-   - 提取出的结果被保存到一个新的、更简洁的 `.log` 文件中。
+   + 在指定 workload 的所有轮次运行完毕后，脚本会调用 `summarize` 函数。
+   + 该函数会遍历每一轮的 `raw.log` 文件，使用 `rg` 或 `grep` 提取出包含 `[OVERALL]`, `[READ]`, `[UPDATE]` 等关键字的关键性能行。
+   + 提取出的结果被保存到一个新的、更简洁的 `.log` 文件中。
 7. **完成**: 当所有数据库的所有 workload 都执行完毕后，脚本退出。
 
 #### 7. 日志与结果
@@ -745,31 +637,29 @@ benchmark-result/
         └── run_threads_<线程数>_round_<轮次>.log
 ```
 
-- `load_...log`: 数据加载阶段的完整日志。
-- `..._raw.log`: `run` 阶段的原始、完整输出日志。
-- `.log` (不含 `raw`): 从 `raw.log` 中提取的关键性能指标汇总。
++ `load_...log`: 数据加载阶段的完整日志。
++ `..._raw.log`: `run` 阶段的原始、完整输出日志。
++ `.log` (不含 `raw`): 从 `raw.log` 中提取的关键性能指标汇总。
 
 #### 8. 示例
 
-- **执行默认测试 (RocksDB, 6线程, 1轮, 所有 workload)**
++ **执行默认测试 (RocksDB, 6线程, 1轮, 所有 workload)**
 
   ```
   ./run_ycsb.sh
   ```
 
-- **用 16 个线程对 RocksDB 和 Memcached 运行 `workloada_10G`，共 3 轮，并显示详细过程**
++ **用 16 个线程对 RocksDB 和 Memcached 运行 `workloada_10G`，共 3 轮，并显示详细过程**
 
   ```
   ./run_ycsb.sh -dbs "rocksdb memcached" -wl "workloada_10G" -t 16 -r 3 -v
   ```
 
-- **仅运行 `workloada_10G` 和 `workloadc_10G` (注意：这两个 workload 数据规模相同，因此 `load` 只会执行一次)**
++ **仅运行 `workloada_10G` 和 `workloadc_10G` (注意：这两个 workload 数据规模相同，因此 `load` 只会执行一次)**
 
   ```
   ./run_ycsb.sh -wl "workloada_10G workloadc_10G"
   ```
-
-
 
 ### CacheBench
 
@@ -783,9 +673,9 @@ cachebench-script中提供预配置好的多情景配置文件，并对输出结
 
 #### 2. 功能特性
 
-- **多数据库支持**：提供`-dbs`选项，通过该选项可指定测试的数据库，目前版本支持RocksDB、Memcached以及Cachelib。
-- **灵活的参数配置**: 采用JSON文件进行参数配置空间，简单易读。
-- **自动日志汇总**: 自动从 CacheLib的原始输出中提取关键性能指标 ，并存入独立的汇总日志文件，便于后续分析；同时也提供报错日志的存储，所有日志均以特定配置和时间戳作为区分。
++ **多数据库支持**：提供`-dbs`选项，通过该选项可指定测试的数据库，目前版本支持RocksDB、Memcached以及Cachelib。
++ **灵活的参数配置**: 采用JSON文件进行参数配置空间，简单易读。
++ **自动日志汇总**: 自动从 CacheLib的原始输出中提取关键性能指标 ，并存入独立的汇总日志文件，便于后续分析；同时也提供报错日志的存储，所有日志均以特定配置和时间戳作为区分。
 
 #### 3. 依赖与准备
 
@@ -805,12 +695,12 @@ cachebench-script中提供预配置好的多情景配置文件，并对输出结
 │                    └── cachebench
 │ 
 └── cachebench-script/             # 脚本所在目录
-    ├── run_benchmark.sh    			 # 您的测试脚本
-    ├── cfg_gen.py          			 # 默认配置JSON文件生成脚本
-    ├── result/             			 # 成功测试结果将存放在这里
-    ├── logs/											 # 测试失败日志将存放在这里
-    ├── cachelib_configs/  			 	 # (脚本中硬编码) 存放配置文件的位置
-    │   └── test.json				 			 # 测试脚本
+    ├── run_benchmark.sh        # 您的测试脚本
+    ├── cfg_gen.py              # 默认配置JSON文件生成脚本
+    ├── result/                 # 成功测试结果将存放在这里
+    ├── logs/            # 测试失败日志将存放在这里
+    ├── cachelib_configs/        # (脚本中硬编码) 存放配置文件的位置
+    │   └── test.json         # 测试脚本
     │   ├── balanced_KV-large_2G.json
     │   ├── readonly_KV-mixed_20G.json
     │   └── workloadc_40G
@@ -828,24 +718,24 @@ cachebench-script中提供预配置好的多情景配置文件，并对输出结
 
 ##### 参数说明
 
-- `-dbs, -dbs "cachelib rocksdb."`
-  - 指定要运行的一个或多个数据库名。文件名之间用空格隔开。
-  - **默认值**: 如果不指定，脚本会指定Cachelib作为默认测试数据库。
-- `-t, -test`
-  - 启用详细模式，打印脚本执行过程中的详细日志。
-  - **默认值**: 关闭
++ `-dbs, -dbs "cachelib rocksdb."`
+  + 指定要运行的一个或多个数据库名。文件名之间用空格隔开。
+  + **默认值**: 如果不指定，脚本会指定Cachelib作为默认测试数据库。
++ `-t, -test`
+  + 启用详细模式，打印脚本执行过程中的详细日志。
+  + **默认值**: 关闭
 
 #### 6. 执行流程详解
 
 1. **参数解析**: 脚本首先解析用户传入的所有命令行参数。
 2. **数据库迭代**: 脚本会遍历 `-dbs` 参数中指定的所有数据库。
 3. **JSON配置文件加载**: 脚本会获取所有待执行的 JSON文件。
-4. **运行测试 **：自动组合成启动cachebench的指令。
+4. **运行测试**：自动组合成启动cachebench的指令。
 5. **完成**: 当所有数据库的所有测试配置都执行完毕后，脚本退出。
 
 #### 7. 日志与结果
 
-成功测试结果都保存在` result/`目录下，失败测试日志保存在` log/`，均按以下结构组织：
+成功测试结果都保存在`result/`目录下，失败测试日志保存在`log/`，均按以下结构组织：
 
 ```
 result/
