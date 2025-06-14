@@ -155,6 +155,8 @@ RocksDB 关键组件：
 | 主要优点   | 高写入性能、高压缩率、为闪存优化        | 极简、高速、网络访问、易于水平扩展   | 高性能、高命中率、精细化控制、防止缓存争用 |
 | 主要缺点   | 功能相对复杂，无内置网络服务            | 数据结构简单                         | 仅为C++库，无独立服务，需自行集成          |
 
+CacheLib 与 Memcached 的区别在于 CacheLib 是一个嵌入式、进程内的高性能 C++ 缓存库，专为大型应用场景设计，支持 DRAM 和 SSD 混合缓存，提供细粒度 eviction 策略、线程安全 API 和更低的 per-object 开销，还具备 warm restart、负缓存、分区控制、缓存容量自调等丰富特性，而 Memcached 则是传统的远端 key‑value 缓存服务，需要通过网络调用，局限于 DRAM 缓存，缺乏 CacheLib 那样的存储混合能力和灵活 eviction 机制，且在大规模并发场景中，Memcached 性能在锁争用和 slab 管理方面容易成为瓶颈。
+
 ## YCSB
 
 #### 简介
@@ -460,55 +462,55 @@ YCSB (Yahoo! Cloud Serving Benchmark) 是一个由雅虎开发的开源框架，
 
 #### 对比不同数据量结果（以KV-mixed、balanced为固定量）
 
-+ 在小数据量情况下，三者的命中率均非常大，所以memcached和cachelib在读写速度上存在较大优势
++ 在小数据量情况下，三者的命中率均非常大，所以memcached和cachelib在读写速度上存在优势
 + 大数据量情况下，RocksDB写优化反超，可能是因为写操作通过 MemTable 合并减少磁盘 IO 次数。同时Memcached和CacheLib由于缓存淘汰机制，命中率明显下降
 
 | Database  | Data Size | Hit Ratio (%) | get throughput | set throughput |
 | :-------: | :-------: | :-----------: | :------------: | :------------: |
-| Memcached |    2G     |     91.37     |    98723.5     |    87654.2     |
-|           |    20G    |     34.52     |    65432.1     |    54321.8     |
-|           |    40G    |     11.68     |    45678.3     |    34567.9     |
+| Memcached |    2G     |     91.37     |    73109.0     |    69631.1     |
+|           |    20G    |     35.90     |    48155.0     |    32452.9     |
+|           |    40G    |     13.98     |    32037.4     |    24289.4     |
 | CacheLib  |    2G     |     92.47     |    84956.3     |    78124.7     |
 |           |    20G    |     35.21     |    56132.8     |    41987.5     |
 |           |    40G    |     12.83     |    38254.6     |    28976.3     |
-|  RocksDB  |    2G     |     78.32     |    72189.4     |    65321.8     |
-|           |    20G    |     28.74     |    49256.7     |    48976.5     |
-|           |    40G    |     8.51      |    32145.9     |    39876.4     |
+|  RocksDB  |    2G     |     -     |    72189.4     |    65321.8     |
+|           |    20G    |     -     |    49256.7     |    48976.5     |
+|           |    40G    |     -      |    32145.9     |    39876.4     |
 
 #### 对比不同 KV-Size 划分结果（以 20G、balanced 为固定量）
 
-+ 在小KV情况下，读写性能、命中率都相对较高，同时Memcached都读性能最高，可能是小 KV 在哈希表中存储效率较高。
++ 在小KV情况下，读写性能、命中率都相对较高，同时CacheLib的性能最高，可能是小 KV 在哈希表中存储效率较高。
 + 大KV情况下，MemCached、Cachelib读写性能连续下降，可能是因为大 KV 加剧哈希冲突与内存碎片化、多级缓存迁移开销高导致的。而LSM 树顺序读写优化，减少磁盘随机 IO，反而在large情况下有提升
 
 | Database  | KV Size | Hit Ratio (%) | get throughput | set throughput |
 | :-------: | :-----: | :-----------: | :------------: | :------------: |
-| Memcached |  small  |     46.89     |    72154.3     |    68754.2     |
-|           |  large  |     20.57     |    41253.6     |    38765.4     |
-|           |  mixed  |     29.42     |    52364.8     |    49876.3     |
+| Memcached |  small  |     50.57     |    53541.1     |    44339.7     |
+|           |  large  |     24.05     |    30016.5     |    22889.3     |
+|           |  mixed  |     33.66     |    34261.6     |    29141.6     |
 | CacheLib  |  small  |     48.73     |    62154.8     |    55213.6     |
 |           |  large  |     22.31     |    35189.2     |    28456.7     |
 |           |  mixed  |     31.54     |    42356.9     |    38124.5     |
-|  RocksDB  |  small  |     35.24     |    50321.7     |    45189.3     |
-|           |  large  |     30.12     |    51234.8     |    49876.3     |
-|           |  mixed  |     25.83     |    38145.6     |    41235.7     |
+|  RocksDB  |  small  |     -     |    50321.7     |    45189.3     |
+|           |  large  |     -     |    51234.8     |    49876.3     |
+|           |  mixed  |     -     |    38145.6     |    41235.7     |
 
 #### 对比不同读写比结果（以KV-mixed、20G为固定量）
 
-+ readheavy：Memcached 纯内存哈希表读速极快，CacheLib 多级缓存开销略低性能，RocksDB 磁盘 IO 影响读吞吐量
-+ setheavy：RocksDB 通过 LSM 树批量写优化逼近 Memcached 纯内存写性能，CacheLib 多级缓存管理开销稍弱
-+ balanced：Memcached 与 CacheLib 在混合读写中性能接近，RocksDB 因 LSM 树读放大效应略落后
++ readheavy：CacheLib 多级缓存读速极快，Memcached 纯内存哈希表性能略低，RocksDB 磁盘 IO 影响读吞吐量
++ setheavy：RocksDB 通过 LSM 树批量写优化逼近 CacheLib 的性能
++ balanced：三者在混合读写中性能接近
 
 | Database  |  Pattern  | Hit Ratio (%) | get throughput | set throughput |
 | :-------: | :-------: | :-----------: | :------------: | :------------: |
-| Memcached | readheavy |     7.94      |    102345.6    |    52345.6     |
-|           | setheavy  |     53.65     |    32154.7     |    98765.4     |
-|           | balanced  |     31.48     |    59876.3     |    54321.8     |
+| Memcached | readheavy |     8.48      |    89194.7    |    48168.2     |
+|           | setheavy  |     56.99     |    28222.6     |    73708.2     |
+|           | balanced  |     33.6     |    38996.6     |    37591.9     |
 | CacheLib  | readheavy |     8.21      |    95213.6     |    50213.4     |
 |           | setheavy  |     55.32     |    30124.5     |    85321.7     |
 |           | balanced  |     32.54     |    48321.5     |    45189.2     |
-|  RocksDB  | readheavy |     6.53      |    82154.9     |    40321.6     |
-|           | setheavy  |     48.71     |    25321.8     |    81234.5     |
-|           | balanced  |     28.35     |    42189.3     |    47896.5     |
+|  RocksDB  | readheavy |     -      |    82154.9     |    40321.6     |
+|           | setheavy  |     -     |    25321.8     |    81234.5     |
+|           | balanced  |     -     |    42189.3     |    47896.5     |
 
 ## README
 
